@@ -123,7 +123,7 @@ int parallel_copy_file(const char *src, const char *dst, const Options *opt)
         goto cleanup;
     }
 
-    out_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, src_st.st_mode & 0777);
+    out_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, src_st.st_mode & PERM_RWX_ALL);
     if (out_fd < 0) {
         perror(dst);
         log_msg("ERROR open %s: %s", dst, strerror(errno));
@@ -186,7 +186,7 @@ int parallel_copy_file(const char *src, const char *dst, const Options *opt)
         putchar('\n');
     }
 
-    if (fchmod(out_fd, src_st.st_mode & 07777) < 0)
+    if (fchmod(out_fd, src_st.st_mode & PERM_ALL_BITS) < 0)
         perror("fchmod");
 
     if (close(out_fd) < 0) {

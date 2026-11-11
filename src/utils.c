@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 200809L
+#define _XOPEN_SOURCE 700
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -66,7 +66,7 @@ void print_file_info(const char *path, const struct stat *st)
 {
     printf("---- File info: %s ----\n", path);
     printf("Size        : %lld bytes\n", (long long)st->st_size);
-    printf("Permissions : %04o\n", (unsigned)(st->st_mode & 07777));
+    printf("Permissions : %04o\n", (unsigned)(st->st_mode & PERM_ALL_BITS));
     printf("Owner UID   : %u\n", (unsigned)st->st_uid);
     printf("Modified    : %s", ctime(&st->st_mtime));
     printf("----------------------------\n");

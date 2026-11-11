@@ -18,7 +18,7 @@ static int scan_tree(const char *src, const char *dst, Queue *files, Queue *dirs
                      dev_t dst_dev, ino_t dst_ino)
 {
     DIR           *dir = opendir(src);
-    struct dirent *entry;
+    const struct dirent *entry;
     int            errors = 0;
 
     if (!dir) {
@@ -50,12 +50,12 @@ static int scan_tree(const char *src, const char *dst, Queue *files, Queue *dirs
                 fprintf(stderr, "Skipping %s (it is the destination)\n", s);
                 continue;
             }
-            if (mkdir(d, (est.st_mode & 0777) | 0700) < 0 && errno != EEXIST) {
+            if (mkdir(d, (est.st_mode & PERM_RWX_ALL) | S_IRWXU) < 0 && errno != EEXIST) {
                 perror(d);
                 errors++;
                 continue;
             }
-            if (queue_push(dirs, s, d, 0, 0, est.st_mode & 07777) < 0) {
+            if (queue_push(dirs, s, d, 0, 0, est.st_mode & PERM_ALL_BITS) < 0) {
                 perror("queue_push");
                 errors++;
                 continue;
@@ -82,13 +82,13 @@ int copy_directory(const char *src, const char *dst, const Options *opt)
     Stats       stats = { 0, 0, 0, 0 };
     Task       *t;
     Task      **order;
-    size_t      n, i;
+    size_t      n;
 
     if (stat(src, &src_st) < 0) {
         perror(src);
         return -1;
     }
-    if (mkdir(dst, (src_st.st_mode & 0777) | 0700) < 0 && errno != EEXIST) {
+    if (mkdir(dst, (src_st.st_mode & PERM_RWX_ALL) | S_IRWXU) < 0 && errno != EEXIST) {
         perror(dst);
         return -1;
     }
@@ -130,6 +130,8 @@ int copy_directory(const char *src, const char *dst, const Options *opt)
     n = dirs.count;
     order = n ? malloc(n * sizeof *order) : NULL;
     if (order) {
+        size_t i;
+
         for (i = 0; i < n; i++)
             order[i] = queue_pop(&dirs);
         for (i = n; i > 0; i--) {
@@ -141,7 +143,7 @@ int copy_directory(const char *src, const char *dst, const Options *opt)
     } else {
         queue_clear(&dirs);
     }
-    if (chmod(dst, src_st.st_mode & 07777) < 0)
+    if (chmod(dst, src_st.st_mode & PERM_ALL_BITS) < 0)
         perror(dst);
 
     printf("Summary: %zu copied, %zu skipped, %zu failed (%lld bytes)\n",

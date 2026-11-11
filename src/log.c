@@ -10,7 +10,7 @@ static int log_fd = -1;
 /* Open (or create) the log file in append mode. */
 int log_open(const char *path)
 {
-    log_fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    log_fd = open(path, O_WRONLY | O_CREAT | O_APPEND, PERM_LOG_FILE);
     return (log_fd < 0) ? -1 : 0;
 }
 

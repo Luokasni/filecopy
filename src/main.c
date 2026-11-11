@@ -46,7 +46,6 @@ int main(int argc, char *argv[])
     const char *log_file = NULL;
     const char *src, *dst;
     struct stat src_st, dst_st;
-    char        target[PATH_MAX_LEN];
     int         c, rc;
 
     while ((c = getopt(argc, argv, "b:ipcrRstj:l:h")) != -1) {
@@ -113,6 +112,8 @@ int main(int argc, char *argv[])
         }
         rc = copy_directory(src, dst, &opt);
     } else {
+        char target[PATH_MAX_LEN];
+
         /* if destination is an existing directory, copy into it */
         if (stat(dst, &dst_st) == 0 && S_ISDIR(dst_st.st_mode)) {
             if (build_target(dst, src, target, sizeof target) < 0) {

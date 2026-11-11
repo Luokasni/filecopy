@@ -67,7 +67,7 @@ int copy_file(const char *src, const char *dst, const Options *opt)
     else
         flags |= O_TRUNC;
 
-    out_fd = open(dst, flags, src_st.st_mode & 0777);
+    out_fd = open(dst, flags, src_st.st_mode & PERM_RWX_ALL);
     if (out_fd < 0) {
         perror(dst);
         log_msg("ERROR open %s: %s", dst, strerror(errno));
@@ -120,7 +120,7 @@ int copy_file(const char *src, const char *dst, const Options *opt)
     elapsed = now_seconds() - start;
 
     /* Level 5: preserve permissions */
-    if (fchmod(out_fd, src_st.st_mode & 07777) < 0)
+    if (fchmod(out_fd, src_st.st_mode & PERM_ALL_BITS) < 0)
         perror("fchmod");
 
     if (close(out_fd) < 0) {
