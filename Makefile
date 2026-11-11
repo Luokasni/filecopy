@@ -1,14 +1,19 @@
+
 CC       = gcc
 CXX      = g++
 CFLAGS   = -Wall -Wextra -std=gnu11 -O2 -pthread
 CXXFLAGS = -Wall -Wextra -std=c++17 -O2 -pthread
 LDFLAGS  = -pthread
 
+INCLUDES = -Iinclude
+
 LIB_OBJS = copy.o parallel.o dir.o queue.o utils.o log.o
 OBJS     = main.o $(LIB_OBJS)
+
 TARGET   = mycp
 TEST_C   = tests/test_mycp
 TEST_GT  = tests/gtest_mycp
+
 GTEST_LIBS = $(shell pkg-config --cflags --libs gtest_main 2>/dev/null || echo -lgtest_main -lgtest)
 
 all: $(TARGET)
@@ -16,47 +21,40 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
 
-%.o: %.c mycp.h
-	$(CC) $(CFLAGS) -c $< -o $@
+%.o: src/%.c include/mycp.h
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
-# ---- tests ------------------------------------------------------------
-# plain C unit tests
-$(TEST_C): tests/test_mycp.c $(LIB_OBJS) mycp.h
-	$(CC) $(CFLAGS) -I. -o $@ tests/test_mycp.c $(LIB_OBJS) $(LDFLAGS)
+# ---- Tests ------------------------------------------------------------
 
-# Google Test.
-#   normal:        needs the installed library (sudo apt-get install -y libgtest-dev)
-#   no install:    make gtest GTEST_SRC=/path/to/googletest   (folder that contains
-#                  googletest/src/gtest-all.cc, e.g. /usr/src/googletest or a
-#                  downloaded copy). The library is then compiled together with the
-#                  tests, so headers and library can never be mismatched.
-# A newer Google Test in /usr/local (headers + libs) must win over an older
-# system one, otherwise headers and library do not match (link errors).
+$(TEST_C): tests/test_mycp.c $(LIB_OBJS) include/mycp.h
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ tests/test_mycp.c $(LIB_OBJS) $(LDFLAGS)
+
+# Google Test configuration
+
 ifneq ($(wildcard /usr/local/include/gtest/gtest.h),)
 GTEST_LIBS = -I/usr/local/include -L/usr/local/lib64 -L/usr/local/lib \
              -Wl,-rpath,/usr/local/lib64 -Wl,-rpath,/usr/local/lib -lgtest_main -lgtest
 endif
+
 ifdef GTEST_SRC
 GTEST_LIBS = -I$(GTEST_SRC)/googletest/include -I$(GTEST_SRC)/googletest \
-             $(GTEST_SRC)/googletest/src/gtest-all.cc $(GTEST_SRC)/googletest/src/gtest_main.cc
+             $(GTEST_SRC)/googletest/src/gtest-all.cc \
+             $(GTEST_SRC)/googletest/src/gtest_main.cc
 endif
-$(TEST_GT): tests/gtest_mycp.cpp $(LIB_OBJS) mycp.h
-	$(CXX) $(CXXFLAGS) -I. -o $@ tests/gtest_mycp.cpp $(LIB_OBJS) $(GTEST_LIBS) $(LDFLAGS)
 
-# C unit tests + command-line tests
+$(TEST_GT): tests/gtest_mycp.cpp $(LIB_OBJS) include/mycp.h
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ tests/gtest_mycp.cpp $(LIB_OBJS) $(GTEST_LIBS) $(LDFLAGS)
+
 test: $(TARGET) $(TEST_C)
 	./$(TEST_C)
 	bash tests/test_cli.sh
 
-# Google Test suite
 gtest: $(TEST_GT)
 	./$(TEST_GT)
 
-# memory-leak / memory-error check with Valgrind (needs: sudo apt-get install -y valgrind)
 valgrind: $(TARGET) $(TEST_C)
 	bash tests/run_valgrind.sh
 
-# code coverage with gcov/lcov (needs: sudo apt-get install -y lcov libgtest-dev)
 coverage:
 	bash tests/run_coverage.sh
 
