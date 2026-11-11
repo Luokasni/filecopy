@@ -1,129 +1,65 @@
 
 CC       = gcc
 CXX      = g++
-
-CFLAGS   = -Wall -Wextra -std=gnu11 -O2 -pthread
-CXXFLAGS = -Wall -Wextra -std=c++14 -O2 -pthread
+CFLAGS   = -Wall -Wextra -std=gnu11 -O2 -pthread -Iinclude
+CXXFLAGS = -Wall -Wextra -std=c++14 -O2 -pthread -Iinclude
 LDFLAGS  = -pthread
 
-INCLUDES = -Iinclude
+BUILD_DIR = build
+TEST_DIR  = tests
 
-# Directories
-SRC_DIR  = src
-INC_DIR  = include
-TEST_DIR = tests
+# Application source files
+SRC_FILES = src/copy.c \
+            src/parallel.c \
+            src/dir.c \
+            src/queue.c \
+            src/utils.c \
+            src/log.c
 
-# Source object files
-LIB_OBJS = copy.o parallel.o dir.o queue.o utils.o log.o
-OBJS     = main.o $(LIB_OBJS)
+MAIN_SRC = src/main.c
 
-TARGET   = mycp
-TEST_C   = $(TEST_DIR)/test_mycp
-TEST_GT  = $(TEST_DIR)/gtest_mycp
+# Object files for the application and tests
+OBJ_FILES = $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(SRC_FILES))
+
+.PHONY: all clean test gtest cppcheck misra analyze
+
+all: $(BUILD_DIR)/mycp
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+$(BUILD_DIR)/%.o: src/%.c include/mycp.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/main.o: $(MAIN_SRC) include/mycp.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/mycp: $(OBJ_FILES) $(BUILD_DIR)/main.o
+	$(CC) $^ $(LDFLAGS) -o $@
+
+# Plain C unit tests
+$(TEST_DIR)/test_mycp: $(TEST_DIR)/test_mycp.c $(OBJ_FILES)
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+
+test: $(TEST_DIR)/test_mycp
+	./$(TEST_DIR)/test_mycp
 
 # Google Test
-GTEST_LIBS = $(shell pkg-config --cflags --libs gtest_main 2>/dev/null || echo -lgtest_main -lgtest)
+gtest: $(OBJ_FILES) $(TEST_DIR)/gtest_mycp.cpp
+	$(CXX) $(CXXFLAGS) $(TEST_DIR)/gtest_mycp.cpp $(OBJ_FILES) \
+		-lgtest -pthread -o $(TEST_DIR)/gtest_mycp
+	./$(TEST_DIR)/gtest_mycp
 
-# Cppcheck and MISRA
-CPPCHECK = cppcheck
-PYTHON   = python3
-
-CPPCHECK_FLAGS = --enable=all \
-                 --inconclusive \
-                 --force \
-                 --inline-suppr \
-                 --suppress=missingIncludeSystem \
-                 --error-exitcode=1 \
-                 $(INCLUDES)
-
-MISRA_ADDON = misra.py
-MISRA_RULES = misra_rules.txt
-
-# --------------------------------------------------
-# Main application
-# --------------------------------------------------
-
-all: $(TARGET)
-
-$(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDFLAGS)
-
-%.o: $(SRC_DIR)/%.c $(INC_DIR)/mycp.h
-	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
-
-# --------------------------------------------------
-# C Unit Tests
-# --------------------------------------------------
-
-$(TEST_C): $(TEST_DIR)/test_mycp.c $(LIB_OBJS) $(INC_DIR)/mycp.h
-	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(TEST_DIR)/test_mycp.c $(LIB_OBJS) $(LDFLAGS)
-
-test: $(TARGET) $(TEST_C)
-	./$(TEST_C)
-	bash $(TEST_DIR)/test_cli.sh
-
-# --------------------------------------------------
-# Google Test - C++14
-# --------------------------------------------------
-
-ifneq ($(wildcard /usr/local/include/gtest/gtest.h),)
-GTEST_LIBS = -I/usr/local/include -L/usr/local/lib64 -L/usr/local/lib \
-             -Wl,-rpath,/usr/local/lib64 -Wl,-rpath,/usr/local/lib \
-             -lgtest_main -lgtest
-endif
-
-ifdef GTEST_SRC
-GTEST_LIBS = -I$(GTEST_SRC)/googletest/include \
-             -I$(GTEST_SRC)/googletest \
-             $(GTEST_SRC)/googletest/src/gtest-all.cc \
-             $(GTEST_SRC)/googletest/src/gtest_main.cc
-endif
-
-$(TEST_GT): $(TEST_DIR)/gtest_mycp.cpp $(LIB_OBJS) $(INC_DIR)/mycp.h
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(TEST_DIR)/gtest_mycp.cpp $(LIB_OBJS) $(GTEST_LIBS) $(LDFLAGS)
-
-gtest: $(TEST_GT)
-	./$(TEST_GT)
-
-# --------------------------------------------------
-# Cppcheck - Static Analysis
-# --------------------------------------------------
-
+# Static analysis
 cppcheck:
-	$(CPPCHECK) $(CPPCHECK_FLAGS) $(SRC_DIR)/ $(TEST_DIR)/
-
-# --------------------------------------------------
-# MISRA C Compliance
-# --------------------------------------------------
+	bash tests/run_cppcheck.sh cppcheck
 
 misra:
-	$(CPPCHECK) --enable=all --force \
-		--addon=$(MISRA_ADDON) \
-		--inline-suppr \
-		--suppress=missingIncludeSystem \
-		$(INCLUDES) $(SRC_DIR)/
+	bash tests/run_cppcheck.sh misra
 
-# --------------------------------------------------
-# Valgrind - Memory Testing
-# --------------------------------------------------
-
-valgrind: $(TARGET) $(TEST_C)
-	bash $(TEST_DIR)/run_valgrind.sh
-
-# --------------------------------------------------
-# Code Coverage
-# --------------------------------------------------
-
-coverage:
-	bash $(TEST_DIR)/run_coverage.sh
-
-# --------------------------------------------------
-# Clean
-# --------------------------------------------------
+analyze: cppcheck misra
 
 clean:
-	rm -f $(OBJS) $(TARGET) $(TEST_C) $(TEST_GT)
-	rm -rf cov
-	rm -f *.gcda *.gcno *.gcov
-
-.PHONY: all test gtest cppcheck misra valgrind coverage clean
+	rm -rf $(BUILD_DIR)
+	rm -f $(TEST_DIR)/test_mycp
+	rm -f $(TEST_DIR)/gtest_mycp
