@@ -78,7 +78,7 @@ cppcheck:
 	bash $(TEST_DIR)/run_cppcheck.sh cppcheck
 
 # --------------------------------------------------
-# MISRA C Analysis
+# MISRA C Analysis - production C files only
 # --------------------------------------------------
 
 misra:
