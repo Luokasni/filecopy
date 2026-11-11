@@ -1,65 +1,111 @@
 
 CC       = gcc
 CXX      = g++
+
+# Compiler settings
 CFLAGS   = -Wall -Wextra -std=gnu11 -O2 -pthread -Iinclude
 CXXFLAGS = -Wall -Wextra -std=c++14 -O2 -pthread -Iinclude
 LDFLAGS  = -pthread
 
-BUILD_DIR = build
+# Directories
+SRC_DIR   = src
+INC_DIR   = include
 TEST_DIR  = tests
+BUILD_DIR = build
 
-# Application source files
-SRC_FILES = src/copy.c \
-            src/parallel.c \
-            src/dir.c \
-            src/queue.c \
-            src/utils.c \
-            src/log.c
+# Source files (queue.c remains unchanged)
+SRC_FILES = copy.c parallel.c dir.c queue.c utils.c log.c
 
-MAIN_SRC = src/main.c
+OBJ_FILES = $(patsubst %.c,$(BUILD_DIR)/%.o,$(SRC_FILES))
+MAIN_OBJ  = $(BUILD_DIR)/main.o
 
-# Object files for the application and tests
-OBJ_FILES = $(patsubst src/%.c,$(BUILD_DIR)/%.o,$(SRC_FILES))
+TARGET  = mycp
+TEST_C  = $(TEST_DIR)/test_mycp
+TEST_GT = $(TEST_DIR)/gtest_mycp
 
-.PHONY: all clean test gtest cppcheck misra analyze
+# Google Test libraries
+GTEST_LIBS = $(shell pkg-config --cflags --libs gtest_main 2>/dev/null || echo -lgtest_main -lgtest)
 
-all: $(BUILD_DIR)/mycp
+# Static analysis
+CPPCHECK = cppcheck
+
+.PHONY: all clean test gtest cppcheck misra analyze valgrind coverage
+
+# --------------------------------------------------
+# Main application
+# --------------------------------------------------
+
+all: $(TARGET)
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(BUILD_DIR)/%.o: src/%.c include/mycp.h | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c $(INC_DIR)/mycp.h | $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/main.o: $(MAIN_SRC) include/mycp.h | $(BUILD_DIR)
-	$(CC) $(CFLAGS) -c $< -o $@
-
-$(BUILD_DIR)/mycp: $(OBJ_FILES) $(BUILD_DIR)/main.o
+$(TARGET): $(OBJ_FILES) $(MAIN_OBJ)
 	$(CC) $^ $(LDFLAGS) -o $@
 
-# Plain C unit tests
-$(TEST_DIR)/test_mycp: $(TEST_DIR)/test_mycp.c $(OBJ_FILES)
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+$(MAIN_OBJ): $(SRC_DIR)/main.c $(INC_DIR)/mycp.h | $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
 
-test: $(TEST_DIR)/test_mycp
-	./$(TEST_DIR)/test_mycp
+# --------------------------------------------------
+# C Unit Tests
+# --------------------------------------------------
 
-# Google Test
-gtest: $(OBJ_FILES) $(TEST_DIR)/gtest_mycp.cpp
-	$(CXX) $(CXXFLAGS) $(TEST_DIR)/gtest_mycp.cpp $(OBJ_FILES) \
-		-lgtest -pthread -o $(TEST_DIR)/gtest_mycp
-	./$(TEST_DIR)/gtest_mycp
+$(TEST_C): $(TEST_DIR)/test_mycp.c $(OBJ_FILES) $(INC_DIR)/mycp.h
+	$(CC) $(CFLAGS) -o $@ $(TEST_DIR)/test_mycp.c $(OBJ_FILES) $(LDFLAGS)
 
-# Static analysis
+test: $(TEST_C)
+	./$(TEST_C)
+	bash $(TEST_DIR)/test_cli.sh
+
+# --------------------------------------------------
+# Google Test - C++14
+# --------------------------------------------------
+
+$(TEST_GT): $(TEST_DIR)/gtest_mycp.cpp $(OBJ_FILES) $(INC_DIR)/mycp.h
+	$(CXX) $(CXXFLAGS) -o $@ $(TEST_DIR)/gtest_mycp.cpp $(OBJ_FILES) $(GTEST_LIBS) $(LDFLAGS)
+
+gtest: $(TEST_GT)
+	./$(TEST_GT)
+
+# --------------------------------------------------
+# Cppcheck - C and C++ source and test files
+# --------------------------------------------------
+
 cppcheck:
-	bash tests/run_cppcheck.sh cppcheck
+	bash $(TEST_DIR)/run_cppcheck.sh cppcheck
+
+# --------------------------------------------------
+# MISRA C Analysis
+# --------------------------------------------------
 
 misra:
-	bash tests/run_cppcheck.sh misra
+	bash $(TEST_DIR)/run_cppcheck.sh misra
 
 analyze: cppcheck misra
 
+# --------------------------------------------------
+# Valgrind
+# --------------------------------------------------
+
+valgrind: $(TEST_C)
+	bash $(TEST_DIR)/run_valgrind.sh
+
+# --------------------------------------------------
+# Code Coverage
+# --------------------------------------------------
+
+coverage:
+	bash $(TEST_DIR)/run_coverage.sh
+
+# --------------------------------------------------
+# Clean
+# --------------------------------------------------
+
 clean:
 	rm -rf $(BUILD_DIR)
-	rm -f $(TEST_DIR)/test_mycp
-	rm -f $(TEST_DIR)/gtest_mycp
+	rm -f $(TARGET) $(TEST_C) $(TEST_GT)
+	rm -rf cov
+	rm -f *.gcda *.gcno *.gcov

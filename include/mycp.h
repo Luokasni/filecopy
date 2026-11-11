@@ -14,6 +14,11 @@
 #define PATH_MAX_LEN     4096
 #define MAX_THREADS      64
 
+/* Symbolic permission masks (MISRA C:2012 Rule 7.1: no octal constants) */
+#define PERM_RWX_ALL  ((mode_t)(S_IRWXU | S_IRWXG | S_IRWXO))
+#define PERM_ALL_BITS ((mode_t)(S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID | S_ISVTX))
+#define PERM_LOG_FILE ((mode_t)(S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
